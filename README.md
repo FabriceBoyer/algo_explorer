@@ -10,7 +10,7 @@ Un atelier visuel pour apprendre les algorithmes en manipulant leur exécution. 
 
 L’instantané initial du 13 septembre 2026 indexe **10 038 fichiers de 44 dépôts publics TheAlgorithms** : code, documentation et autres fichiers, avec chemin, dépôt, licence déclarée et référence de commit. Les dépôts archivés non vides sont inclus, les dépôts vides sont indiqués. Les fichiers ne correspondent **pas** tous à des algorithmes distincts : tests, outils et variantes sont également présents.
 
-**12 ateliers sont réellement simulables et exportables.** Le catalogue exhaustif des fichiers ne constitue pas une simulation automatique de tous les algorithmes de l’organisation. Les autres sources sont consultables sur GitHub, explicitement étiquetées « sans simulation intégrée ». Leur adaptation en pseudocode reste à réaliser. Il n’existe pas de traduction automatique universelle du code source importé.
+**45 ateliers sont réellement simulables et exportables.** Le catalogue exhaustif des fichiers ne constitue pas une simulation automatique de tous les algorithmes de l’organisation. Les autres sources sont consultables sur GitHub, explicitement étiquetées « sans simulation intégrée ». Leur adaptation en pseudocode reste à réaliser. Il n’existe pas de traduction automatique universelle du code source importé.
 
 | Famille       | Ateliers                                    | Temps, pire cas | Mémoire auxiliaire du programme |
 | ------------- | ------------------------------------------- | --------------- | ------------------------------- |
@@ -22,6 +22,43 @@ L’instantané initial du 13 septembre 2026 indexe **10 038 fichiers de 44 dép
 | Mathématiques | Fibonacci, remplissage du tableau           | O(n)            | O(1)                            |
 
 Ces complexités concernent les versions originales, hors stockage de la trace par l’interface. Les ateliers sont des adaptations pédagogiques écrites pour ce projet, pas des copies d’implémentations externes.
+
+## Nouveaux ateliers et thème Aurora
+
+Le thème utilise des accents indigo et corail, un fond clair ivoire/lavande et un fond sombre bleu nuit. La lecture est bleue, l’écriture corail ; les indications textuelles et le pseudocode complètent les couleurs.
+
+Les 33 ateliers ajoutés portent le total à 45 :
+
+- **Tris (8 ajouts)** : fusion itérative, rapide à pile explicite, tas, Shell, cocktail, peigne, pair-impair et retournement (pancake).
+- **Recherches (3 ajouts)** : exponentielle, sauts, interpolation ; entrée triée obligatoire.
+- **Tableaux (7 ajouts)** : minimum, somme, moyenne, rotation circulaire, suppression de doublons triés, inversions et somme maximale à fenêtre fixe.
+- **Mathématiques (5 ajouts)** : factorielle, exponentiation rapide, primalité, crible d’Ératosthène, PPCM.
+- **Programmation dynamique (3 ateliers)** : sous-suite strictement croissante (LIS), monnaie à quantité illimitée, somme de sous-ensemble (chaque élément une fois).
+- **Graphes (7 ateliers)** : BFS, DFS, Dijkstra, Bellman-Ford, Prim, tri topologique de Kahn et Floyd-Warshall.
+
+### Graphes et données personnalisées
+
+Les graphes utilisent une matrice d’adjacence carrée de **2 à 8 sommets**, aplatie dans `a`. L’arête u→v se trouve à `a[u * vertices + v]`. **0 signifie absence d’arête**, la diagonale doit être nulle : les arêtes de poids nul et les boucles sur soi ne sont donc pas représentables dans ces ateliers.
+
+Le panneau **Modifier les arêtes** fournit une grille de saisie ; cliquer ensuite sur **Appliquer**. Pour Prim, les modifications sont symétriques. Modifier la liste brute permet de changer le nombre de sommets. Les sommets sont étiquetés A, B, C… et indexés 0, 1, 2… Le champ de départ correspond à `target`.
+
+Dijkstra et Prim exigent des poids positifs ; Prim exige en plus une matrice symétrique. Bellman-Ford et Floyd-Warshall acceptent les poids négatifs et signalent les cycles négatifs avec `negative_cycle`. Kahn signale un cycle avec `has_cycle`. Les graphes déconnectés sont acceptés ; Prim renvoie `result=-1` si aucun arbre couvrant n’existe. Pour les distances, **1 000 000 000** est une sentinelle affichée **∞** ; elle reste numérique dans les exports. `parent` décrit les liens parents, `order` contient les `result` sommets parcourus, `dist` les distances ou la matrice de distances.
+
+La complexité indiquée tient compte de la représentation matricielle : BFS/DFS/Dijkstra/Prim/Kahn en O(V²), Bellman-Ford et Floyd-Warshall en O(V³). Les limites de trace s’appliquent aussi aux entrées valides : de gros exemples peuvent atteindre la limite d’étapes.
+
+### Tableaux auxiliaires et expérimentation
+
+```text
+array temp[n]   # n cellules initialisées à zéro
+temp[0] <- a[0]
+a[0] <- temp[0] + 1
+```
+
+Les tableaux de travail sont affichés avec leurs indices, lectures et écritures. Le panneau **Structures de travail** suit le pas-à-pas dans les deux sens. Une déclaration répétée réinitialise le tableau. Les noms scalaires et les noms des tableaux auxiliaires constituent deux espaces distincts ; utiliser des noms différents reste conseillé. `a`, `n` et `target` ne peuvent pas être redéclarés comme tableaux.
+
+Limites : 32 tableaux auxiliaires, 256 cellules par tableau, 1 024 cellules auxiliaires au total ; stockage de trace limité à 2 millions de valeurs et 500 000 évaluations d’expression. Les exports conservent les limites d’allocation et leur garde d’exécution de 10 000 instructions, sans stocker de trace.
+
+Les autres préconditions sont vérifiées avant exécution : factorielle de 0 à 14, exposant entier positif ou nul, fenêtre de 1 à n, rotation entière ; monnaie et sous-ensembles utilisent une cible entière de 0 à 64. Le code et les données sont toujours modifiables ; une erreur est signalée au lieu d’être ignorée.
 
 ## Démarrage en moins de cinq minutes
 
@@ -64,7 +101,7 @@ L’image compile Vite dans un étage Node, puis sert uniquement `dist/` avec Ng
 1. Sélectionner un atelier dans la barre latérale ; filtrer par famille ou nom français/anglais.
 2. Cliquer **Exécuter** ; régler la vitesse de 0,5× à 8×.
 3. Les flèches avancent/reculent d’une instruction. Le curseur donne accès à toute la trace. Recommencer revient à l’état initial ; dernière étape montre le résultat.
-4. La ligne exécutée est surlignée dans le pseudocode et dans l’arbre AST. Les variables modifiées deviennent vertes.
+4. La ligne exécutée est surlignée dans le pseudocode et dans l’arbre AST. Les variables modifiées deviennent corail.
 5. Dans **Données d’entrée**, préparer les valeurs puis cliquer **Appliquer**. Aléatoire modifie le champ, sans appliquer silencieusement ses valeurs.
 6. **Modifier** ouvre l’éditeur. **Appliquer** reconstruit la trace depuis l’état initial et mémorise le pseudocode par atelier. **Restaurer l’original** remplit l’éditeur ; appliquer ensuite.
 7. **Exporter** produit un programme Python, Go ou C avec le code et les données effectivement appliqués, et non un brouillon non appliqué.
@@ -73,7 +110,7 @@ L’image compile Vite dans un étage Node, puis sert uniquement `dist/` avec Ng
 ### Lire l’affichage
 
 - Tableau `a`, indexé à partir de **0**. Hauteur des barres = valeur absolue. Les nombres négatifs sont hachurés avec leur signe visible.
-- Violet : lecture ; vert : écriture ; vert-gris : cellule non touchée à cette étape.
+- Bleu : lecture ; corail : écriture ; lavande : cellule non touchée à cette étape.
 - Les curseurs `i`, `j`, `low`, `high`, `mid`, `left`, `right`, `best` apparaissent sous les indices correspondants.
 - Le mode **Cellules** conserve les valeurs et indices sans coder les grandeurs par les hauteurs.
 - Les états sont des instantanés immuables : revenir en arrière ne réexécute pas du code arbitraire.
@@ -130,7 +167,7 @@ Une instruction par ligne. L’indentation est recommandée mais ne délimite pa
 - Accès hors tableau, indice fractionnaire, variable non définie, division par zéro et syntaxe invalide sont signalés.
 - Une erreur d’exécution conserve la portion valide de la trace et indique la ligne fautive.
 - Ni `eval`, ni `Function`, ni JavaScript utilisateur, ni imports exécutables.
-- **Pas encore de graphes, matrices, chaînes, fonctions, récursion, allocation dynamique ni visualisation de structures arborescentes de données.** L’arbre AST représente le programme, pas un arbre binaire d’entrée.
+- **Graphes et matrices aplaties pris en charge.** Les tableaux auxiliaires ont une taille fixée lors de leur déclaration, bornée de 1 à 256 cellules. Pas encore de chaînes, fonctions ni récursion native. Le tri rapide utilise une pile explicite. L’arbre AST représente le programme, pas un arbre binaire d’entrée.
 
 Le langage vise l’expérimentation pédagogique ; ce n’est pas un compilateur des langages des dépôts TheAlgorithms.
 
@@ -145,7 +182,7 @@ gcc -std=c11 bubble-sort.c -lm -o bubble-sort
 ./bubble-sort
 ```
 
-`emit` imprime un tableau JSON. La dernière ligne est un objet JSON avec `a` (résultat) et `variables` (état scalaire). Exemples : résultat de recherche dans `variables.result`, PGCD dans `variables.result`.
+`emit` imprime un tableau JSON. La dernière ligne est un objet JSON avec `a` (résultat) et `variables` (état scalaire) et `arrays` (tableaux auxiliaires). Exemples : résultat de recherche dans `variables.result`, PGCD dans `variables.result`.
 
 Les exports partagent les opérations et contrôles de bornes ; ils sont limités à 10 000 instructions mais ne stockent pas les 5 000 images de l’interface. À cette limite, leur nombre exact d’itérations peut différer du moteur, car la trace visuelle est limitée séparément. Des différences d’arrondi IEEE 754 restent possibles pour des calculs extrêmes.
 
@@ -196,7 +233,7 @@ npm run check                       # tests + build
 npm audit --audit-level=high
 ```
 
-Les tests vérifient chaque atelier, les résultats sur valeurs négatives/doublons/cas limites, les erreurs, les courts-circuits et l’immuabilité de la trace. Ils compilent/exécutent les **36 combinaisons atelier × langage** et comparent tableau ET variables avec l’interpréteur, avec un programme modifié supplémentaire couvrant comparaisons, grands produits et décimales. Playwright teste édition, pas-à-pas, export téléchargé, erreurs, catalogue, mobile, traduction et thème.
+Les tests vérifient chaque atelier, les résultats sur valeurs négatives/doublons/cas limites, les erreurs, les courts-circuits et l’immuabilité de la trace. Ils compilent/exécutent les **135 combinaisons atelier × langage** et comparent tableau, variables ET tableaux auxiliaires avec l’interpréteur, avec un programme modifié supplémentaire couvrant comparaisons, grands produits et décimales. Playwright teste édition, pas-à-pas, export téléchargé, erreurs, catalogue, mobile, traduction et thème.
 
 Les captures de test sont écrites dans `test-results/` (ignoré par Git). Les nombres décimaux demandent des comparaisons avec tolérance si vous ajoutez des tests qui en utilisent.
 
@@ -247,7 +284,7 @@ Si le site devient vide, un asset répond 404, ou un parcours essentiel régress
 
 Ajouter un atelier dans `src/algorithms.ts` : identifiant stable, catégorie, noms/descriptions/explication FR/EN, complexités, données par défaut pertinentes et pseudocode. Ajouter des tests sur résultat, cas limites et exports. Toute extension du langage doit évoluer **simultanément** dans l’analyseur, l’exécuteur, les trois exporteurs et la documentation.
 
-Pour couvrir à terme l’ensemble des algorithmes, il faudra : dédupliquer les variantes multilangages, définir une taxonomie indépendante du langage, ajouter structures de graphes/matrices/chaînes et récursion au modèle intermédiaire, développer les vues correspondantes, puis écrire et valider des adaptations par famille. Une source cataloguée ne doit jamais être marquée « interactive » avant cette validation.
+Pour couvrir à terme l’ensemble des algorithmes, il faudra : dédupliquer les variantes multilangages, définir une taxonomie indépendante du langage, étendre les graphes et matrices déjà pris en charge, ajouter les chaînes et la récursion au modèle intermédiaire, développer les vues correspondantes, puis écrire et valider des adaptations par famille. Une source cataloguée ne doit jamais être marquée « interactive » avant cette validation.
 
 ## Sources complémentaires et licences
 
@@ -262,9 +299,9 @@ Ces ressources complémentaires ne sont pas importées dans ce site. Une intégr
 
 Algo Explorer is a **frontend-only React/TypeScript/Vite algorithm playground**. Start with `npm ci && npm run dev`, or `docker compose up --build -d --wait` and visit http://localhost:8080. The UI and built-in help are fully available in English and French; language and light/dark theme are automatically detected, with persistent overrides.
 
-**Coverage is explicit:** the bundled snapshot indexes 10,038 files from all 44 discovered public TheAlgorithms repositories. It is a source catalog, not a universal algorithm translator. Twelve independently authored numeric-array/scalar playgrounds support execution, stepping backward/forward, editable pseudocode and input, AST display and Python/Go/C exports. Graphs, recursion, matrices and strings remain future work.
+**Coverage is explicit:** the bundled snapshot indexes 10,038 files from all 44 discovered public TheAlgorithms repositories. It is a source catalog, not a universal algorithm translator. Forty-five independently authored playgrounds support execution, stepping backward/forward, editable pseudocode and input, AST display and Python/Go/C exports. Seven graph playgrounds, an editable adjacency matrix, auxiliary arrays and dynamic-programming tables are included. Recursion and strings remain future work.
 
-Click Run, step with arrows, or scrub the timeline. Purple cells are read, green cells are written. Apply edited input and pseudocode before exporting. JSON sessions preserve your applied code, data and target. The final line of a generated program prints `{ "a": [...], "variables": {...} }`. Runtime errors retain valid earlier frames; loops and numeric values are bounded.
+Click Run, step with arrows, or scrub the timeline. Blue cells are read, coral cells are written. Apply edited input and pseudocode before exporting. JSON sessions preserve your applied code, data and target. The final line of a generated program prints `{ "a": [...], "variables": {...}, "arrays": {...} }`. Runtime errors retain valid earlier frames; loops and numeric values are bounded.
 
 Run `npm test` with Python, Go and GCC installed; use `npm run test:e2e` after `npx playwright install chromium`. The CI tests all playgrounds and native exports, browser flows, Docker, and the production base path before deploying Pages on main. Enable GitHub Actions as the Pages publishing source. Refresh the catalog with `npm run catalog` using an authenticated GitHub CLI or GH_TOKEN. Tokens are maintenance-only and never included in frontend assets.
 

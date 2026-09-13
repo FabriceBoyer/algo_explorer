@@ -1,3 +1,5 @@
+import { GraphView, BufferView, MatrixEditor } from "./Structures";
+import { validateInput, randomInput } from "./inputs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -63,6 +65,9 @@ const words = {
     searchCat: "Recherches",
     math: "Mathématiques",
     arrays: "Tableaux",
+    graphs: "Graphes",
+    dynamic: "Programmation dynamique",
+    graph: "Graphe",
     ready: "prêts à explorer",
     collections: "COLLECTIONS",
     source: "Les sources ouvertes, la curiosité sans limites.",
@@ -169,6 +174,9 @@ const words = {
     searchCat: "Searching",
     math: "Mathematics",
     arrays: "Arrays",
+    graphs: "Graphs",
+    dynamic: "Dynamic programming",
+    graph: "Graph",
     ready: "ready to explore",
     collections: "COLLECTIONS",
     source: "Open sources. Boundless curiosity.",
@@ -339,7 +347,9 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
-  const [view, setView] = useState("bars");
+  const [view, setView] = useState(
+    selected.input === "graph" ? "graph" : "bars",
+  );
   const [codeView, setCodeView] = useState("pseudo");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -399,16 +409,9 @@ export default function App() {
     const timer = setTimeout(() => setNotice(""), 3500);
     return () => clearTimeout(timer);
   }, [notice]);
-  const run = useMemo(() => {
+  const run = useMemo<ReturnType<typeof execute>>(() => {
     try {
-      if (selected.sorted && data.some((v, i) => i > 0 && v < data[i - 1]))
-        throw Error(t.sorted);
-      if (
-        selected.id === "euclid" &&
-        (data.length < 2 ||
-          data.slice(0, 2).some((v) => !Number.isInteger(v) || v <= 0))
-      )
-        throw Error(t.euclid);
+      validateInput(selected, data, target, locale);
       return execute(code, data, target);
     } catch (e) {
       return {
@@ -416,6 +419,9 @@ export default function App() {
         frames: [
           {
             a: data,
+            arrays: {},
+            arrayReads: {},
+            arrayWrites: {},
             vars: { n: data.length, target },
             line: 0,
             reads: [],
@@ -426,7 +432,7 @@ export default function App() {
         error: (e as Error).message,
       };
     }
-  }, [code, data, target, selected, t]);
+  }, [code, data, target, selected, locale]);
   const frame = run.frames[Math.min(step, run.frames.length - 1)];
   const last = run.frames.length - 1;
   const completed = step === last && step > 0;
@@ -505,6 +511,8 @@ export default function App() {
     ["search", t.searchCat],
     ["arrays", t.arrays],
     ["math", t.math],
+    ["graphs", t.graphs],
+    ["dynamic", t.dynamic],
   ];
   function navigate(p: string) {
     setPage(p);
@@ -514,6 +522,7 @@ export default function App() {
   function choose(a: typeof selected) {
     selectedId.current = a.id;
     setSelected(a);
+    setView(a.input === "graph" ? "graph" : "bars");
     const stored = read(`code:${a.id}`, a.code);
     setCode(stored);
     setDraft(stored);
@@ -539,6 +548,7 @@ export default function App() {
             ? "Cible invalide (±1 000 000 maximum)"
             : "Invalid target (±1,000,000 maximum)",
         );
+      validateInput(selected, next, num, locale);
       setData(next);
       setTarget(num);
       setStep(0);
@@ -580,6 +590,7 @@ export default function App() {
       )
         throw Error(fr ? "Session invalide" : "Invalid session");
       const values = parseData(s.data.join(","));
+      validateInput(a, values, s.target, locale);
       execute(s.code, values, s.target);
       choose(a);
       setCode(s.code);
@@ -635,7 +646,7 @@ export default function App() {
               }}
             >
               <span className="category-symbol">
-                {["◈", "≋", "⌕", "▦", "ƒ"][i]}
+                {["◈", "≋", "⌕", "▦", "ƒ", "⌘", "▧"][i]}
               </span>
               {label}
               <span className="count">
@@ -827,18 +838,25 @@ export default function App() {
                 <section className="panel visual-panel">
                   <header className="panel-header">
                     <h3>
-                      <span className="green-dot" />
+                      <span className="coral-dot" />
                       {t.visual}
                     </h3>
                     <div className="panel-actions">
                       <div className="segmented">
-                        {["bars", "cells"].map((v) => (
+                        {(selected.input === "graph"
+                          ? ["graph", "cells"]
+                          : ["bars", "cells"]
+                        ).map((v) => (
                           <button
                             key={v}
                             className={view === v ? "selected" : ""}
                             onClick={() => setView(v)}
                           >
-                            {v === "bars" ? t.bars : t.cells}
+                            {v === "graph"
+                              ? t.graph
+                              : v === "bars"
+                                ? t.bars
+                                : t.cells}
                           </button>
                         ))}
                       </div>
@@ -867,56 +885,69 @@ export default function App() {
                       </span>
                       <span>a[{frame.a.length}]</span>
                     </div>
-                    <div
-                      className={`array-visual ${view}`}
-                      role="img"
-                      aria-label={`${t.visual}: ${frame.a.join(", ")}`}
-                    >
-                      {frame.a.map((value, i) => (
-                        <div
-                          className={`array-item ${frame.writes.includes(i) ? "writing" : frame.reads.includes(i) ? "reading" : ""}`}
-                          key={i}
-                        >
-                          <div className="bar-space">
-                            <div
-                              className={`bar ${value < 0 ? "negative" : ""}`}
-                              style={{
-                                height:
-                                  view === "bars"
-                                    ? `${Math.max(9, (Math.abs(value) / max) * 100)}%`
-                                    : undefined,
-                              }}
-                            >
-                              <span>
-                                {Number.isInteger(value)
-                                  ? value
-                                  : Number(value.toFixed(2))}
-                              </span>
+                    {selected.input === "graph" && view === "graph" ? (
+                      <GraphView
+                        frame={frame}
+                        locale={locale}
+                        source={target}
+                      />
+                    ) : (
+                      <div
+                        className={`array-visual ${view}`}
+                        role="img"
+                        aria-label={`${t.visual}: ${frame.a.join(", ")}`}
+                      >
+                        {frame.a.map((value, i) => (
+                          <div
+                            className={`array-item ${frame.writes.includes(i) ? "writing" : frame.reads.includes(i) ? "reading" : ""}`}
+                            key={i}
+                          >
+                            <div className="bar-space">
+                              <div
+                                className={`bar ${value < 0 ? "negative" : ""}`}
+                                style={{
+                                  height:
+                                    view === "bars"
+                                      ? `${Math.max(9, (Math.abs(value) / max) * 100)}%`
+                                      : undefined,
+                                }}
+                              >
+                                <span>
+                                  {Number.isInteger(value)
+                                    ? value
+                                    : Number(value.toFixed(2))}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="array-index">{i}</span>
+                            <div className="array-pointer">
+                              {Object.entries(frame.vars)
+                                .filter(
+                                  ([name, v]) =>
+                                    [
+                                      "i",
+                                      "j",
+                                      "mid",
+                                      "left",
+                                      "right",
+                                      "best",
+                                      "low",
+                                      "high",
+                                      "root",
+                                      "child",
+                                      "k",
+                                      "p",
+                                      "start",
+                                    ].includes(name) && v === i,
+                                )
+                                .map(([name]) => (
+                                  <span key={name}>{name}</span>
+                                ))}
                             </div>
                           </div>
-                          <span className="array-index">{i}</span>
-                          <div className="array-pointer">
-                            {Object.entries(frame.vars)
-                              .filter(
-                                ([name, v]) =>
-                                  [
-                                    "i",
-                                    "j",
-                                    "mid",
-                                    "left",
-                                    "right",
-                                    "best",
-                                    "low",
-                                    "high",
-                                  ].includes(name) && v === i,
-                              )
-                              .map(([name]) => (
-                                <span key={name}>{name}</span>
-                              ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="legend">
                       <span>
                         <i />
@@ -927,7 +958,7 @@ export default function App() {
                         {t.read}
                       </span>
                       <span>
-                        <i className="green-dot" />
+                        <i className="coral-dot" />
                         {t.write}
                       </span>
                     </div>
@@ -1047,12 +1078,7 @@ export default function App() {
                         type="button"
                         className="text-button"
                         onClick={() => {
-                          let values = Array.from(
-                            { length: 8 },
-                            () => 5 + Math.floor(Math.random() * 60),
-                          );
-                          if (selected.sorted)
-                            values = values.sort((a, b) => a - b);
+                          const values = randomInput(selected);
                           setInput(values.join(", "));
                         }}
                       >
@@ -1060,6 +1086,14 @@ export default function App() {
                         {t.random}
                       </button>
                     </div>
+                    {selected.input === "graph" && (
+                      <MatrixEditor
+                        input={input}
+                        update={setInput}
+                        locale={locale}
+                        symmetric={selected.rule === "undirected"}
+                      />
+                    )}
                     <div className="input-row">
                       <input
                         id="data"
@@ -1072,9 +1106,21 @@ export default function App() {
                         <ArrowRight aria-hidden="true" size={14} />
                       </button>
                     </div>
-                    {selected.category === "search" && (
+                    {selected.target !== undefined && (
                       <label className="target-input">
-                        {t.target}
+                        {selected.input === "graph"
+                          ? fr
+                            ? "Sommet de départ (0 = A)"
+                            : "Starting vertex (0 = A)"
+                          : selected.id === "sliding-window"
+                            ? fr
+                              ? "Taille de fenêtre"
+                              : "Window size"
+                            : selected.id === "rotate-array"
+                              ? fr
+                                ? "Décalage"
+                                : "Shift"
+                              : t.target}
                         <input
                           type="number"
                           value={targetDraft}
@@ -1162,13 +1208,13 @@ export default function App() {
                             <code>
                               {line
                                 .split(
-                                  /(\b(?:while|if|else|end|swap|emit)\b|<-|\b\d+\b)/g,
+                                  /(\b(?:array|while|if|else|end|swap|emit)\b|<-|\b\d+\b)/g,
                                 )
                                 .map((part, j) => (
                                   <span
                                     key={j}
                                     className={
-                                      /^(while|if|else|end|swap|emit|<-)$/.test(
+                                      /^(array|while|if|else|end|swap|emit|<-)$/.test(
                                         part,
                                       )
                                         ? "keyword"
@@ -1228,6 +1274,16 @@ export default function App() {
                   </div>
                 </section>
               </div>
+              <BufferView
+                frame={frame}
+                previous={run.frames[step - 1]}
+                locale={locale}
+                matrixSize={
+                  selected.input === "graph"
+                    ? Math.sqrt(data.length)
+                    : undefined
+                }
+              />
               <div className="bottom-grid">
                 <section className="insight">
                   <div className="insight-icon">
@@ -1455,12 +1511,12 @@ export default function App() {
                       [
                         "01",
                         "Choisir et observer",
-                        "Choisissez l’un des 12 ateliers. Exécuter anime les instructions ; les flèches avancent ou reculent d’une étape. Le curseur accède à n’importe quel état. Espace lance ou suspend la lecture hors des champs de saisie.",
+                        "Choisissez l’un des 45 ateliers. Exécuter anime les instructions ; les flèches avancent ou reculent d’une étape. Le curseur accède à n’importe quel état. Espace lance ou suspend la lecture hors des champs de saisie.",
                       ],
                       [
                         "02",
                         "Lire la visualisation",
-                        "Chaque barre représente a[index]. Sa hauteur représente la valeur absolue ; les nombres négatifs sont hachurés et conservent leur signe. Violet = lecture, vert = écriture. Les étiquettes sous les indices montrent les curseurs du programme. Le mode Cellules convient aux grands tableaux.",
+                        "Chaque barre représente a[index]. Sa hauteur représente la valeur absolue ; les nombres négatifs sont hachurés et conservent leur signe. Bleu = lecture, corail = écriture. Les étiquettes sous les indices montrent les curseurs du programme. Le mode Cellules convient aux grands tableaux.",
                       ],
                       [
                         "03",
@@ -1480,19 +1536,19 @@ export default function App() {
                       [
                         "06",
                         "Comprendre la couverture",
-                        "Le catalogue indexe tous les fichiers de toutes les arborescences publiques découvertes dans l’organisation TheAlgorithms à la date indiquée, y compris les dépôts archivés non vides. Filtres et recherche donnent accès aux sources, pas à une traduction universelle. Douze adaptations indépendantes sont simulables ; graphes, récursion, chaînes et matrices ne sont pas encore pris en charge par le moteur.",
+                        "Le catalogue indexe tous les fichiers de toutes les arborescences publiques découvertes dans l’organisation TheAlgorithms à la date indiquée, y compris les dépôts archivés non vides. Filtres et recherche donnent accès aux sources, pas à une traduction universelle. 45 adaptations indépendantes sont simulables, dont sept ateliers de graphes. Les tableaux auxiliaires et les matrices aplaties sont pris en charge ; les chaînes et la récursion restent à ajouter. Les autres sources du catalogue restent à adapter et à tester.",
                       ],
                     ]
                   : [
                       [
                         "01",
                         "Choose and observe",
-                        "Choose one of 12 playgrounds. Run animates instructions; the arrows move forward or backward one step. Scrub to any state. Space toggles playback when you are not editing or focusing a control.",
+                        "Choose one of 45 playgrounds. Run animates instructions; the arrows move forward or backward one step. Scrub to any state. Space toggles playback when you are not editing or focusing a control.",
                       ],
                       [
                         "02",
                         "Read the visualization",
-                        "Each bar represents a[index]. Height represents absolute value; negative numbers are hatched and retain their sign. Purple means read, green means write. Labels beneath indices show program cursors. Cells mode works well for larger arrays.",
+                        "Each bar represents a[index]. Height represents absolute value; negative numbers are hatched and retain their sign. Blue means read, coral means write. Labels beneath indices show program cursors. Cells mode works well for larger arrays.",
                       ],
                       [
                         "03",
@@ -1512,7 +1568,7 @@ export default function App() {
                       [
                         "06",
                         "Understand coverage",
-                        "The catalog indexes every file in every public repository tree discovered in TheAlgorithms at the snapshot date, including non-empty archived repositories. Search and filters provide sources, not universal translation. Twelve independent adaptations are executable; graphs, recursion, strings and matrices are not yet supported by the engine.",
+                        "The catalog indexes every file in every public repository tree discovered in TheAlgorithms at the snapshot date, including non-empty archived repositories. Search and filters provide sources, not universal translation. 45 independent adaptations are executable, including seven graph playgrounds. Auxiliary arrays and flattened matrices are supported; strings and recursion remain future work. Other catalog sources still need adaptation and testing.",
                       ],
                     ]
                 ).map(([num, title, text]) => (
@@ -1531,8 +1587,8 @@ export default function App() {
                 </h2>
                 <p>
                   {fr
-                    ? "Tableau numérique a, longueur n en lecture seule, cible target et variables scalaires. Indices à partir de zéro. Une instruction par ligne ; blocs fermés par end."
-                    : "Numeric array a, read-only length n, target and scalar variables. Zero-based indices. One instruction per line; close blocks with end."}
+                    ? "Tableau numérique a, longueur n en lecture seule, cible target et variables scalaires. Indices à partir de zéro. Une instruction par ligne ; blocs fermés par end. Déclarez un tableau de zéros avec array temp[n], puis lisez ou modifiez temp[i]. Les graphes utilisent a[u * vertices + v] : 0 = aucune arête. Le bouton Modifier les arêtes édite la matrice ; appliquez ensuite les données."
+                    : "Numeric array a, read-only length n, target and scalar variables. Zero-based indices. One instruction per line; close blocks with end. Declare a zero-filled array with array temp[n], then read or modify temp[i]. Graphs use a[u * vertices + v]: 0 = no edge. Edit edges opens the matrix editor; apply your changes afterward."}
                 </p>
                 <pre>{`# ${fr ? "Commentaire" : "Comment"}
 i <- 0
@@ -1550,8 +1606,8 @@ swap a[0], a[n - 1]`}</pre>
                 </p>
                 <p>
                   {fr
-                    ? "La division est réelle ; % est le reste signé (comme C). && et || court-circuitent. Les valeurs sont des nombres IEEE 754 ; les comparaisons produisent 0 ou 1. Limites : 20 000 caractères, 32 blocs imbriqués, 5 000 étapes, 10 000 instructions, valeurs stockées ≤ 10¹². Une erreur conserve les étapes déjà exécutées. Les exports ont une limite de 10 000 instructions, sans l’historique visuel."
-                    : "Division is real; % is signed remainder (as in C). && and || short-circuit. Values use IEEE 754 numbers; comparisons produce 0 or 1. Limits: 20,000 characters, 32 nested blocks, 5,000 steps, 10,000 instructions, stored absolute values ≤ 10¹². Errors preserve earlier steps. Exports have a 10,000-instruction limit without visual history."}
+                    ? "La division est réelle ; % est le reste signé (comme C). && et || court-circuitent. Les valeurs sont des nombres IEEE 754 ; les comparaisons produisent 0 ou 1. Limites : 20 000 caractères, 32 blocs imbriqués, 5 000 étapes, 10 000 instructions, valeurs stockées ≤ 10¹². Tableaux auxiliaires : 1 à 256 cellules chacun, 32 tableaux et 1 024 cellules au total. La trace est limitée à 2 millions de valeurs et 500 000 évaluations d’expression. Une erreur conserve les étapes déjà exécutées. Les exports ont une limite de 10 000 instructions, sans l’historique visuel."
+                    : "Division is real; % is signed remainder (as in C). && and || short-circuit. Values use IEEE 754 numbers; comparisons produce 0 or 1. Limits: 20,000 characters, 32 nested blocks, 5,000 steps, 10,000 instructions, stored absolute values ≤ 10¹². Auxiliary arrays: 1–256 cells each, 32 arrays and 1,024 total cells. Trace storage is capped at 2 million values and 500,000 expression evaluations. Errors preserve earlier steps. Exports have a 10,000-instruction limit without visual history."}
                 </p>
               </section>
               <section className="help-card">

@@ -147,3 +147,76 @@ test("session import keeps custom code across hash navigation", async ({
     page.getByRole("heading", { name: "Inversion de tableau", exact: true }),
   ).toBeVisible();
 });
+
+test("new graph and DP workshops use editable inputs and visible buffers", async ({
+  page,
+}) => {
+  await page.goto("/#dijkstra");
+  await expect(
+    page.getByRole("img", { name: "Graphe de 5 sommets" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Dernière étape", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".buffer")
+      .filter({ has: page.locator("code").getByText("dist", { exact: true }) }),
+  ).toContainText("7");
+  await page.getByText("Modifier les arêtes", { exact: true }).click();
+  await page
+    .getByRole("spinbutton", { name: "Poids A → B", exact: true })
+    .fill("1");
+  await page.getByRole("button", { name: "Appliquer", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Dernière étape", exact: true })
+    .click();
+  await page.screenshot({
+    path: "test-results/graph-aurora.png",
+    fullPage: true,
+  });
+  await page.goto("/#coin-change");
+  await page
+    .getByRole("button", { name: "Dernière étape", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".variable-grid>div")
+      .filter({
+        has: page.locator("code").getByText("result", { exact: true }),
+      }),
+  ).toContainText("2");
+  await expect(page.locator(".buffer-panel")).toContainText("dp");
+});
+test("auxiliary arrays can be edited and graph layout fits mobile", async ({
+  page,
+}) => {
+  await page.goto("/#merge-sort");
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Pseudocode", exact: true })
+    .fill("array temp[n]\ntemp[0] <- 99\na[0] <- temp[0]");
+  await page
+    .locator(".editor-actions")
+    .getByRole("button", { name: "Appliquer" })
+    .click();
+  await page
+    .getByRole("button", { name: "Dernière étape", exact: true })
+    .click();
+  await expect(page.locator(".buffer-panel")).toContainText("99");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#bfs");
+  await expect(
+    page.getByRole("img", { name: "Graphe de 5 sommets" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Thème: auto" }).click();
+  await page.getByRole("button", { name: "Thème: light" }).click();
+  await page.screenshot({
+    path: "test-results/graph-mobile-dark.png",
+    fullPage: true,
+  });
+});

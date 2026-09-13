@@ -88,6 +88,10 @@ describe("pseudocode interpreter", () => {
     "x <- a[-1]",
     "x <- a[0.5]",
     "x <- 10000000000000",
+    "x[0] <- 1",
+    "array temp[0]",
+    "array temp[257]",
+    "array temp[2]\nx <- temp[2]",
   ])("reports runtime error: %s", (code) =>
     expect(execute(code, [1]).error).toBeTruthy(),
   );
@@ -97,7 +101,6 @@ describe("pseudocode interpreter", () => {
     "else",
     "n <- 0",
     "a <- 1",
-    "x[0] <- 1",
     "x = 1",
     "x <- alert(1)",
     "if 1\nelse\nelse\nend",
@@ -170,6 +173,7 @@ describe("native exports match interpreter output", () => {
           ).frames.at(-1)!;
           expect(result.a).toEqual(expected.a);
           expect(result.variables).toEqual(expected.vars);
+          expect(result.arrays).toEqual(expected.arrays);
         } finally {
           rmSync(dir, { recursive: true, force: true });
         }

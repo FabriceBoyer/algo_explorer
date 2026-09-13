@@ -9,10 +9,13 @@ export function exportProgram(
 ): string {
   const nodes = parseProgram(source);
   const names = new Set(["n", "target"]);
+  const buffers = new Set<string>();
   function scan(e: Expr) {
     if (e.kind === "var") names.add(e.name);
-    else if (e.kind === "index") scan(e.index);
-    else if (e.kind === "unary") scan(e.value);
+    else if (e.kind === "index") {
+      if (e.name !== "a") buffers.add(e.name);
+      scan(e.index);
+    } else if (e.kind === "unary") scan(e.value);
     else if (e.kind === "binary") {
       scan(e.left);
       scan(e.right);
@@ -20,9 +23,14 @@ export function exportProgram(
   }
   function collect(body: Node[]) {
     body.forEach((n) => {
-      if (n.kind === "set") {
-        if (n.target.index) scan(n.target.index);
-        else names.add(n.target.name);
+      if (n.kind === "array") {
+        buffers.add(n.name);
+        scan(n.size);
+      } else if (n.kind === "set") {
+        if (n.target.index) {
+          if (n.target.name !== "a") buffers.add(n.target.name);
+          scan(n.target.index);
+        } else names.add(n.target.name);
         scan(n.value);
       } else if (n.kind === "swap") {
         scan(n.left);
@@ -36,6 +44,10 @@ export function exportProgram(
   }
   collect(nodes);
   const ids = [...names];
+  const bids = [...buffers];
+  if (bids.length > 32) throw new Error("Maximum 32 auxiliary arrays");
+  const bid = (name: string) => bids.indexOf(name);
+  const auxiliary = bufferRuntime(language, bids);
   const id = (name: string) => ids.indexOf(name);
   const py = language === "python";
   const go = language === "go";
@@ -47,7 +59,10 @@ export function exportProgram(
           ? `float(${e.value})`
           : `((double)${e.value})`;
     if (e.kind === "var") return `getv(${id(e.name)})`;
-    if (e.kind === "index") return `get(${expr(e.index)})`;
+    if (e.kind === "index")
+      return e.name === "a"
+        ? `get(${expr(e.index)})`
+        : `bget(${bid(e.name)}, ${expr(e.index)})`;
     if (e.kind === "unary") {
       const v = expr(e.value);
       if (e.op === "!")
@@ -83,8 +98,10 @@ export function exportProgram(
       .map((n) => {
         const end = py ? "" : ";";
         let result = `${indent}${py ? "#" : "//"} L${n.line}\n${indent}tick()${end}\n`;
-        if (n.kind === "set")
-          result += `${indent}${n.target.index ? `put(${expr(n.target.index)}, ${expr(n.value)})` : `setv(${id(n.target.name)}, ${expr(n.value)})`}${end}\n`;
+        if (n.kind === "array")
+          result += `${indent}newarray(${bid(n.name)}, ${expr(n.size)})${end}\n`;
+        else if (n.kind === "set")
+          result += `${indent}${n.target.index ? (n.target.name === "a" ? `put(${expr(n.target.index)}, ${expr(n.value)})` : `bput(${bid(n.target.name)}, ${expr(n.target.index)}, ${expr(n.value)})`) : `setv(${id(n.target.name)}, ${expr(n.value)})`}${end}\n`;
         else if (n.kind === "swap")
           result += `${indent}swap(${expr(n.left)}, ${expr(n.right)})${end}\n`;
         else if (n.kind === "emit") result += `${indent}snapshot()${end}\n`;
@@ -108,15 +125,47 @@ export function exportProgram(
   if (py)
     return (
       header +
-      `import math\nimport json\na = list(map(float, ${JSON.stringify(data)}))\nv = {0: float(${data.length}), 1: float(${target})}\nsteps = 0\ndef tick():\n    global steps\n    steps += 1\n    if steps > 10000: raise RuntimeError("Execution limit")\ndef idx(i):\n    if not math.isfinite(i) or int(i) != i or not 0 <= i < len(a): raise IndexError(i)\n    return int(i)\ndef get(i): return a[idx(i)]\ndef finite(x):\n    if not math.isfinite(x) or abs(x) > 1e12: raise ValueError("Numeric limit")\n    return x\ndef put(i, x): a[idx(i)] = finite(x)\ndef getv(i): return v[i]\ndef setv(i, x): v[i] = finite(x)\ndef swap(i, j):\n    i, j = idx(i), idx(j)\n    a[i], a[j] = a[j], a[i]\ndef divide(x, y): return x / y\ndef modulo(x, y): return math.fmod(x, y)\ndef snapshot(): print(json.dumps(a))\n\n${body(nodes, 0)}print(json.dumps({'a': a, 'variables': {name: v[i] for i, name in enumerate(${JSON.stringify(ids)}) if i in v}}))\n`
+      `import math\nimport json\na = list(map(float, ${JSON.stringify(data)}))\nv = {0: float(${data.length}), 1: float(${target})}\nsteps = 0\ndef tick():\n    global steps\n    steps += 1\n    if steps > 10000: raise RuntimeError("Execution limit")\ndef idx(i):\n    if not math.isfinite(i) or int(i) != i or not 0 <= i < len(a): raise IndexError(i)\n    return int(i)\ndef get(i): return a[idx(i)]\ndef finite(x):\n    if not math.isfinite(x) or abs(x) > 1e12: raise ValueError("Numeric limit")\n    return x\ndef put(i, x): a[idx(i)] = finite(x)\ndef getv(i): return v[i]\ndef setv(i, x): v[i] = finite(x)\ndef swap(i, j):\n    i, j = idx(i), idx(j)\n    a[i], a[j] = a[j], a[i]\ndef divide(x, y): return x / y\ndef modulo(x, y): return math.fmod(x, y)\ndef snapshot(): print(json.dumps(a))\n\n${auxiliary}\n${body(nodes, 0)}print(json.dumps({'a': a, 'variables': {name: v[i] for i, name in enumerate(${JSON.stringify(ids)}) if i in v}, 'arrays': {name: b[i] for i, name in enumerate(${JSON.stringify(bids)}) if i in b}}))\n`
     );
   if (go)
     return (
       header +
-      `package main\nimport ("fmt"; "math"; "encoding/json")\nvar a = []float64{${data.join(",")}}\nvar v = map[int]float64{0:${data.length},1:${target}}\nvar steps int\nfunc tick() { steps++; if steps > 10000 { panic("Execution limit") } }\nfunc truth(x bool) float64 { if x { return 1 }; return 0 }\nfunc idx(i float64) int { if math.IsNaN(i) || math.IsInf(i,0) || i != math.Trunc(i) || i < 0 || i >= float64(len(a)) { panic("Index out of range") }; return int(i) }\nfunc finite(x float64) float64 { if math.IsNaN(x) || math.IsInf(x,0) || math.Abs(x)>1e12 { panic("Numeric limit") }; return x }\nfunc get(i float64) float64 { return a[idx(i)] }\nfunc put(i,x float64) { a[idx(i)] = finite(x) }\nfunc getv(i int) float64 { x,ok := v[i]; if !ok { panic("Undefined variable") }; return x }\nfunc setv(i int,x float64) { v[i] = finite(x) }\nfunc swap(i,j float64) { x,y := idx(i),idx(j); a[x],a[y] = a[y],a[x] }\nfunc divide(x,y float64) float64 { if y==0 { panic("Division by zero") }; return x/y }\nfunc modulo(x,y float64) float64 { if y==0 { panic("Division by zero") }; return math.Mod(x,y) }\nfunc snapshot() { b,err := json.Marshal(a); if err != nil { panic(err) }; fmt.Println(string(b)) }\nfunc main() {\n${body(nodes, 1)}    names := []string{${ids.map((n) => JSON.stringify(n)).join(",")}}\n    variables := map[string]float64{}\n    for i,x := range v { variables[names[i]]=x }\n    output,err := json.Marshal(map[string]interface{}{"a":a,"variables":variables}); if err!=nil { panic(err) }; fmt.Println(string(output))\n}\n`
+      `package main\nimport ("fmt"; "math"; "encoding/json")\nvar a = []float64{${data.join(",")}}\nvar v = map[int]float64{0:${data.length},1:${target}}\nvar steps int\nfunc tick() { steps++; if steps > 10000 { panic("Execution limit") } }\nfunc truth(x bool) float64 { if x { return 1 }; return 0 }\nfunc idx(i float64) int { if math.IsNaN(i) || math.IsInf(i,0) || i != math.Trunc(i) || i < 0 || i >= float64(len(a)) { panic("Index out of range") }; return int(i) }\nfunc finite(x float64) float64 { if math.IsNaN(x) || math.IsInf(x,0) || math.Abs(x)>1e12 { panic("Numeric limit") }; return x }\nfunc get(i float64) float64 { return a[idx(i)] }\nfunc put(i,x float64) { a[idx(i)] = finite(x) }\nfunc getv(i int) float64 { x,ok := v[i]; if !ok { panic("Undefined variable") }; return x }\nfunc setv(i int,x float64) { v[i] = finite(x) }\nfunc swap(i,j float64) { x,y := idx(i),idx(j); a[x],a[y] = a[y],a[x] }\nfunc divide(x,y float64) float64 { if y==0 { panic("Division by zero") }; return x/y }\nfunc modulo(x,y float64) float64 { if y==0 { panic("Division by zero") }; return math.Mod(x,y) }\nfunc snapshot() { b,err := json.Marshal(a); if err != nil { panic(err) }; fmt.Println(string(b)) }\n${auxiliary}\nfunc main() {\n${body(nodes, 1)}    names := []string{${ids.map((n) => JSON.stringify(n)).join(",")}}\n    variables := map[string]float64{}\n    for i,x := range v { variables[names[i]]=x }\n    arrayNames := []string{${bids.map((n) => JSON.stringify(n)).join(",")}}\n    arrays := map[string][]float64{}\n    for i,values := range buffers { arrays[arrayNames[i]]=values }\n    output,err := json.Marshal(map[string]interface{}{"a":a,"variables":variables,"arrays":arrays}); if err!=nil { panic(err) }; fmt.Println(string(output))\n}\n`
     );
   return (
     header +
-    `#include <stdio.h>\n#include <stdlib.h>\n#include <math.h>\nstatic double a[] = {${data.join(",")}};\nstatic double v[${ids.length}] = {${data.length},${target}};\nstatic int initialized[${ids.length}] = {1,1};\nstatic int steps = 0;\nstatic void fail(const char *s) { fprintf(stderr,"%s\\n",s); exit(1); }\nstatic void tick(void) { if (++steps>10000) fail("Execution limit"); }\nstatic int idx(double i) { if (!isfinite(i) || i!=trunc(i) || i<0 || i>=${data.length}) fail("Index out of range"); return (int)i; }\nstatic double finite_value(double x) { if (!isfinite(x) || fabs(x)>1e12) fail("Numeric limit"); return x; }\nstatic double get(double i) { return a[idx(i)]; }\nstatic void put(double i,double x) { a[idx(i)] = finite_value(x); }\nstatic double getv(int i) { if (!initialized[i]) fail("Undefined variable"); return v[i]; }\nstatic void setv(int i,double x) { v[i]=finite_value(x); initialized[i]=1; }\nstatic void swap(double i,double j) { int x=idx(i),y=idx(j); double t=a[x]; a[x]=a[y]; a[y]=t; }\nstatic double divide(double x,double y) { if (y==0) fail("Division by zero"); return x/y; }\nstatic double modulo(double x,double y) { if (y==0) fail("Division by zero"); return fmod(x,y); }\nstatic void snapshot(void) { putchar('['); for(int i=0;i<${data.length};i++) printf("%s%.17g",i?",":"",a[i]); puts("]"); }\nint main(void) {\n${body(nodes, 1)}    const char *names[] = {${ids.map((n) => JSON.stringify(n)).join(",")}};\n    printf("{\\\"a\\\":");\n    putchar('['); for(int i=0;i<${data.length};i++) printf("%s%.17g",i?",":"",a[i]);\n    printf("],\\\"variables\\\":{");\n    int first=1; for(int i=0;i<${ids.length};i++) if(initialized[i]) { printf("%s\\\"%s\\\":%.17g",first?"":",",names[i],v[i]); first=0; }\n    puts("}}");\n    return 0;\n}\n`
+    `#include <stdio.h>\n#include <stdlib.h>\n#include <math.h>\nstatic double a[] = {${data.join(",")}};\nstatic double v[${ids.length}] = {${data.length},${target}};\nstatic int initialized[${ids.length}] = {1,1};\nstatic int steps = 0;\nstatic void fail(const char *s) { fprintf(stderr,"%s\\n",s); exit(1); }\nstatic void tick(void) { if (++steps>10000) fail("Execution limit"); }\nstatic int idx(double i) { if (!isfinite(i) || i!=trunc(i) || i<0 || i>=${data.length}) fail("Index out of range"); return (int)i; }\nstatic double finite_value(double x) { if (!isfinite(x) || fabs(x)>1e12) fail("Numeric limit"); return x; }\nstatic double get(double i) { return a[idx(i)]; }\nstatic void put(double i,double x) { a[idx(i)] = finite_value(x); }\nstatic double getv(int i) { if (!initialized[i]) fail("Undefined variable"); return v[i]; }\nstatic void setv(int i,double x) { v[i]=finite_value(x); initialized[i]=1; }\nstatic void swap(double i,double j) { int x=idx(i),y=idx(j); double t=a[x]; a[x]=a[y]; a[y]=t; }\nstatic double divide(double x,double y) { if (y==0) fail("Division by zero"); return x/y; }\nstatic double modulo(double x,double y) { if (y==0) fail("Division by zero"); return fmod(x,y); }\nstatic void snapshot(void) { putchar('['); for(int i=0;i<${data.length};i++) printf("%s%.17g",i?",":"",a[i]); puts("]"); }\n${auxiliary}\nint main(void) {\n${body(nodes, 1)}    const char *names[] = {${ids.map((n) => JSON.stringify(n)).join(",")}};\n    printf("{\\\"a\\\":");\n    putchar('['); for(int i=0;i<${data.length};i++) printf("%s%.17g",i?",":"",a[i]);\n    printf("],\\\"variables\\\":{");\n    int first=1; for(int i=0;i<${ids.length};i++) if(initialized[i]) { printf("%s\\\"%s\\\":%.17g",first?"":",",names[i],v[i]); first=0; }\n    printf("},\\\"arrays\\\":{");\n    const char *array_names[] = {${bids.length ? bids.map((n) => JSON.stringify(n)).join(",") : '""'}};\n    first=1; for(int i=0;i<${bids.length};i++) if(sizes[i]) { printf("%s\\\"%s\\\":[",first?"":",",array_names[i]); for(int j=0;j<sizes[i];j++) printf("%s%.17g",j?",":"",buffers[i][j]); putchar(']'); first=0; }\n    puts("}}");\n    return 0;\n}\n`
   );
+}
+
+function bufferRuntime(language: Language, names: string[]): string {
+  if (language === "python")
+    return `
+b = {}
+def newarray(k, size):
+    if not math.isfinite(size) or size != int(size) or size < 1 or size > 256 or sum(len(v) for i,v in b.items() if i != k)+size > 1024: raise ValueError("Array allocation limit")
+    b[k] = [0.0] * int(size)
+def bidx(k, i):
+    if k not in b: raise ValueError("Undefined array")
+    if not math.isfinite(i) or i != int(i) or i < 0 or i >= len(b[k]): raise IndexError(i)
+    return int(i)
+def bget(k, i): return b[k][bidx(k, i)]
+def bput(k, i, x): b[k][bidx(k, i)] = finite(x)
+`;
+  if (language === "go")
+    return `
+var buffers = map[int][]float64{}
+func newarray(k int, size float64) { total:=0; for i,values:=range buffers { if i!=k { total+=len(values) } }; if math.IsNaN(size) || math.IsInf(size,0) || size!=math.Trunc(size) || size<1 || size>256 || float64(total)+size>1024 { panic("Array allocation limit") }; buffers[k]=make([]float64,int(size)) }
+func bidx(k int,i float64) int { values,ok:=buffers[k]; if !ok { panic("Undefined array") }; if math.IsNaN(i) || math.IsInf(i,0) || i!=math.Trunc(i) || i<0 || i>=float64(len(values)) { panic("Index out of range") }; return int(i) }
+func bget(k int,i float64) float64 { return buffers[k][bidx(k,i)] }
+func bput(k int,i,x float64) { buffers[k][bidx(k,i)]=finite(x) }
+`;
+  return `
+static double buffers[${Math.max(1, names.length)}][256];
+static int sizes[${Math.max(1, names.length)}];
+static void newarray(int k,double size) { int total=0; for(int i=0;i<${names.length};i++) if(i!=k) total+=sizes[i]; if(!isfinite(size) || size!=trunc(size) || size<1 || size>256 || total+size>1024) fail("Array allocation limit"); sizes[k]=(int)size; for(int i=0;i<sizes[k];i++) buffers[k][i]=0; }
+static int bidx(int k,double i) { if(!sizes[k]) fail("Undefined array"); if(!isfinite(i) || i!=trunc(i) || i<0 || i>=sizes[k]) fail("Index out of range"); return (int)i; }
+static double bget(int k,double i) { return buffers[k][bidx(k,i)]; }
+static void bput(int k,double i,double x) { buffers[k][bidx(k,i)]=finite_value(x); }
+`;
 }

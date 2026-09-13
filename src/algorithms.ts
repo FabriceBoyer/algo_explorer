@@ -1,8 +1,9 @@
+import { additionalAlgorithms } from "./additionalAlgorithms";
 export type Locale = "fr" | "en";
 export type Algorithm = {
   id: string;
   name: Record<Locale, string>;
-  category: "sorting" | "search" | "math" | "arrays";
+  category: "sorting" | "search" | "math" | "arrays" | "graphs" | "dynamic";
   complexity: string;
   space: string;
   description: Record<Locale, string>;
@@ -11,6 +12,18 @@ export type Algorithm = {
   data: number[];
   target?: number;
   sorted?: boolean;
+  input?: "graph";
+  rule?:
+    | "integer-target"
+    | "window"
+    | "factorial"
+    | "power"
+    | "nonnegative-integers"
+    | "positive-pair"
+    | "coins"
+    | "subset"
+    | "negative-edges"
+    | "undirected";
 };
 const data = [38, 15, 52, 23, 8, 44, 31, 61];
 export const algorithms: Algorithm[] = [
@@ -25,8 +38,8 @@ export const algorithms: Algorithm[] = [
       en: "Small values rise. Large values find their place. One comparison at a time.",
     },
     insight: {
-      fr: "À chaque passage, le plus grand élément restant rejoint sa position finale. Les cases violettes sont lues ; les cases vertes sont modifiées.",
-      en: "Each pass moves the largest remaining value to its final position. Purple cells are read; green cells are changed.",
+      fr: "À chaque passage, le plus grand élément restant rejoint sa position finale. Les cases bleues sont lues ; les cases corail sont modifiées.",
+      en: "Each pass moves the largest remaining value to its final position. Blue cells are read; coral cells are changed.",
     },
     data,
     code: `i <- 0
@@ -327,4 +340,5 @@ while i < n
   i <- i + 1
 end`,
   },
+  ...additionalAlgorithms,
 ];

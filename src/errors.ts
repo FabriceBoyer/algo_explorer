@@ -20,8 +20,19 @@ export function localizeError(message: string, locale: Locale): string {
       "Programme trop long (20 000 caractères maximum)",
     ],
     [
-      "n is read-only; only a supports indexing",
-      "n est en lecture seule ; seul a accepte des indices",
+      "n is read-only; a requires indexing",
+      "n est en lecture seule ; a exige un indice",
+    ],
+    ["Undefined array:", "Tableau non défini :"],
+    ["Reserved array name", "Nom de tableau réservé"],
+    [
+      "Array allocation limit (1–256 cells, 32 arrays, 1024 total)",
+      "Limite des tableaux (1–256 cellules, 32 tableaux, 1 024 au total)",
+    ],
+    ["Trace memory limit exceeded", "Limite mémoire de la trace dépassée"],
+    [
+      "Expression limit exceeded",
+      "Limite d’évaluation des expressions dépassée",
     ],
     ["Maximum nesting: 32", "Imbrication maximale : 32"],
     ["Division by zero", "Division par zéro"],
