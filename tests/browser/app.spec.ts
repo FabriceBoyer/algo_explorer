@@ -181,11 +181,9 @@ test("new graph and DP workshops use editable inputs and visible buffers", async
     .getByRole("button", { name: "Dernière étape", exact: true })
     .click();
   await expect(
-    page
-      .locator(".variable-grid>div")
-      .filter({
-        has: page.locator("code").getByText("result", { exact: true }),
-      }),
+    page.locator(".variable-grid>div").filter({
+      has: page.locator("code").getByText("result", { exact: true }),
+    }),
   ).toContainText("2");
   await expect(page.locator(".buffer-panel")).toContainText("dp");
 });
