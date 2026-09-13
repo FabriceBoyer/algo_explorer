@@ -217,7 +217,7 @@ Build manuel pour ce dépôt :
 
 ```sh
 BASE_PATH=/algo_explorer/ npm run build
-npm run preview
+BASE_PATH=/algo_explorer/ npm run preview
 ```
 
 Pour un domaine racine, utiliser `BASE_PATH=/`. Le Dockerfile et Compose ciblent `/`. Ne pas réutiliser un bundle construit pour `/algo_explorer/` à la racine d’un serveur sans adapter sa configuration.

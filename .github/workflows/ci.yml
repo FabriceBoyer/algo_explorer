@@ -36,6 +36,8 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
       - name: Smoke-test production under repository base path
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
         run: |
           npm run preview -- --port 4173 > /tmp/preview.log 2>&1 &
           for i in $(seq 1 30); do curl --fail http://localhost:4173/${{ github.event.repository.name }}/ && break || sleep 1; done
