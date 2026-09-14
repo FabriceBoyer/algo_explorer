@@ -163,7 +163,7 @@ test("new graph and DP workshops use editable inputs and visible buffers", async
       .locator(".buffer")
       .filter({ has: page.locator("code").getByText("dist", { exact: true }) }),
   ).toContainText("7");
-  await page.getByText("Modifier les arêtes", { exact: true }).click();
+  await page.locator(".matrix-editor summary").click();
   await page
     .getByRole("spinbutton", { name: "Poids A → B", exact: true })
     .fill("1");
